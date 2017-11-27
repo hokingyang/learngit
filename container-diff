@@ -1,0 +1,46 @@
+谷歌容器团队发布了container-diff工具，用来帮助恢复容器影响之间的不同，帮助我们进行容器应用开发。我们认为这个工具对开发基于容器的工具很有用，因为很高兴将它开源给开发社区。
+
+容器和dockefile格式使客制化应用运行环境更加方便和理解。这是容器对软件开发带来的有点，而一个主要的缺点在于很难将dockerfile对映像改变可视化，使得映像臃肿，排查困难。
+
+设想一个开发者正在基于第三方维护的映像开发应用，某人发布了此映像的一个新版本基础包。开发者采用了新映像并重建了应用，突然应用无响应了，因为依赖于以前基础影像中的系统包，但是因为没有可用工具判断这两个基础映像的更改，无法确定到底依赖哪个系统包以及哪个版本，这会严重影响开发进度。
+
+介绍container-diff
+
+container-diff帮助用户了解映像之间的差别。意味着container-diff从了解底层数据改变开始，然后通知包管理者并已一种可读的方式将信息传递给用户；它可以发现映像内系统包、语言包和文件的变化。
+
+container-diff帮助用户
+
+container-diff helps users investigate image changes by computing semantic diffs between images. What this means is that container-diff figures out on a low-level what data changed, and then combines this with an understanding of package manager information to output this information in a format that’s actually readable to users. The tool can find differences in system packages, language-level packages, and files in a container image.
+
+Users can specify images in several formats - from local Docker daemon (using the prefix `daemon://` on the image path), a remote registry (using the prefix `remote://`), or a file in the .tar in the format exported by "docker save" command. You can also combine these formats to compute the diff between a local version of an image and a remote version. This can be useful when experimenting with new builds of an image that you might not be quite ready to push yet. container-diff supports image tarballs and the registry protocol natively, enabling it to run in environments without a Docker daemon.
+Examples and Use Cases
+
+Here is a basic Dockerfile that installs Python inside our Debian base image. Running container-diff on the base image and the new one with Python, users can see all the apt packages that were installed as dependencies of Python.
+
+
+
+And below is a Dockerfile that inherits from our Python base runtime image, and then installs the mock and six packages inside of it. Running container-diff with the pip differ, users can see all the Python packages that have either been installed or changed as a result of this:
+
+
+
+This can be especially useful when it’s unclear which packages might have been installed or changed incidentally as a result of dependency management of Python modules.
+
+These are just a few examples. The tool currently has support for Python and Node.js packages installed via pip and npm, respectively, as well as comparison of image filesystems and Docker history. In the future, we’d like to see support added for additional runtime and language differs, including Java, Go, and Ruby. External contributions are welcome! For more information on contributing to container-diff, see this how-to guide.
+
+Now that we’ve seen container-diff compare two images in action, it’s easy to imagine how the tool may be integrated into larger workflows to aid in development:
+Changelog generation: Given container-diff’s capacity to facilitate investigation of filesystem and package modifications, it can do most of the heavy lifting in discerning changes for automatic changelog generation for new releases of an image.
+Continuous integration: As part of a CI system, users can leverage container-diff to catch potentially breaking filesystem changes resulting from a Dockerfile change in their builds.
+container-diff’s default output mode is “human-readable,” but also supports output to JSON, allowing for easy automated parsing and processing by users.
+Single Image Analysis
+
+In addition to comparing two images, container-diff has the ability to analyze a single image on its own. This can enable users to get a quick glance at information about an image, such as its system and language-level package installations and filesystem contents.
+
+Let’s take a look at our Debian base image again. We can use the tool to easily view a list of all packages installed in the image, along with each one’s installed version and size:
+
+
+
+We could use this to verify compatibility with an application we’re building, or maybe sort the packages by size in another one of our images and see which ones are taking up the most space.
+
+For more information about this tool as well as a breakdown with examples, uses, and inner workings of the tool, please take a look at documentation on our GitHub page. Happy diffing!
+
+Special thanks to Colette Torres and Abby Tisdale, our software engineering interns who helped build the tool from the ground up.
