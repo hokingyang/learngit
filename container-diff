@@ -8,29 +8,32 @@
 
 container-diff帮助用户了解映像之间的差别。意味着container-diff从了解底层数据改变开始，然后通知包管理者并已一种可读的方式将信息传递给用户；它可以发现映像内系统包、语言包和文件的变化。
 
-container-diff帮助用户
+container-diff帮助用户察觉映像之间语法的不同，也就意味着container-diff监控底层变化，然后通过可读的方式输出变化。此工可以发现系统包、语言包和文件的变化。
 
-container-diff helps users investigate image changes by computing semantic diffs between images. What this means is that container-diff figures out on a low-level what data changed, and then combines this with an understanding of package manager information to output this information in a format that’s actually readable to users. The tool can find differences in system packages, language-level packages, and files in a container image.
+用户可以用几种格式说明映像--包括本地Docker守护进程（ 使用daemon://前缀 ），远程注册表（ 使用remote://前缀 ），或者用'docker save'命令输出的tar文件。也可以将这几种格式整合起来发现本地映像版本和远程版本之间的不同，这对于还没准备发布的映像尤为重要。container-diff内置支持映像tar包和注册协议，使得它可以在无Docker守护进程环境下运行。
 
-Users can specify images in several formats - from local Docker daemon (using the prefix `daemon://` on the image path), a remote registry (using the prefix `remote://`), or a file in the .tar in the format exported by "docker save" command. You can also combine these formats to compute the diff between a local version of an image and a remote version. This can be useful when experimenting with new builds of an image that you might not be quite ready to push yet. container-diff supports image tarballs and the registry protocol natively, enabling it to run in environments without a Docker daemon.
-Examples and Use Cases
+实例和使用场景
 
-Here is a basic Dockerfile that installs Python inside our Debian base image. Running container-diff on the base image and the new one with Python, users can see all the apt packages that were installed as dependencies of Python.
-
+此例子是一个在Debian基础包内部安装Python的Dockerfile。在它们之间运行container-diff，用户可以看到所有Python依赖的apt包。
 
 
-And below is a Dockerfile that inherits from our Python base runtime image, and then installs the mock and six packages inside of it. Running container-diff with the pip differ, users can see all the Python packages that have either been installed or changed as a result of this:
+下图是接续上面那个Python基础运行映像，然后在其中安装mock和其它六个包。用户可以同时使用container-diff和pip differ，看到所有安装或者被改变的Python包：
 
 
 
-This can be especially useful when it’s unclear which packages might have been installed or changed incidentally as a result of dependency management of Python modules.
+以上功能对于管理Python包的依赖模块以及改变非常有用。
 
-These are just a few examples. The tool currently has support for Python and Node.js packages installed via pip and npm, respectively, as well as comparison of image filesystems and Docker history. In the future, we’d like to see support added for additional runtime and language differs, including Java, Go, and Ruby. External contributions are welcome! For more information on contributing to container-diff, see this how-to guide.
+这些只是一部分例子。此工具现在支持通过pip和npm安装的Python和Node.js包，同时支持映像文件系统和Docker历史的比较。未来，我们还会添加其他运行环境和不同语言的支持，包括Java，Go和Ruby。外部贡献也是非常欢迎的，如果想对container-diff作出贡献，可以看how-to指南。
 
-Now that we’ve seen container-diff compare two images in action, it’s easy to imagine how the tool may be integrated into larger workflows to aid in development:
-Changelog generation: Given container-diff’s capacity to facilitate investigation of filesystem and package modifications, it can do most of the heavy lifting in discerning changes for automatic changelog generation for new releases of an image.
-Continuous integration: As part of a CI system, users can leverage container-diff to catch potentially breaking filesystem changes resulting from a Dockerfile change in their builds.
-container-diff’s default output mode is “human-readable,” but also supports output to JSON, allowing for easy automated parsing and processing by users.
+现在我们已经看到如何比较两个映像，很容易设想此工具如何被整合到大型开发工作流：
+1.生成更改日志：
+考虑到container-diff可以用户发现文件系统和包的更改，因此可以被用到自动生成新映像的更改日志。
+2.持续整合：
+作为CI系统一部分，用户可以使用container-diff发现使用Dockerfile带来的文件系统级别的改变。
+container-diff默认输出模式是“用户可读的”，但是也支持JSON格式，允许用户自动分析和处理。
+
+单一映像分析
+
 Single Image Analysis
 
 In addition to comparing two images, container-diff has the ability to analyze a single image on its own. This can enable users to get a quick glance at information about an image, such as its system and language-level package installations and filesystem contents.
