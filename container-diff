@@ -33,17 +33,12 @@ container-diff帮助用户察觉映像之间语法的不同，也就意味着con
 container-diff默认输出模式是“用户可读的”，但是也支持JSON格式，允许用户自动分析和处理。
 
 单一映像分析
+除了可以用于比较映像间不同，container-diff还可以用于分析映像内部。用户可以迅速获得一个映像内部信息，例如系统和语言包以及文件系统内容。
 
-Single Image Analysis
-
-In addition to comparing two images, container-diff has the ability to analyze a single image on its own. This can enable users to get a quick glance at information about an image, such as its system and language-level package installations and filesystem contents.
-
-Let’s take a look at our Debian base image again. We can use the tool to easily view a list of all packages installed in the image, along with each one’s installed version and size:
+咱们再看看Debian基础映像，可以很容易使用此工具发现安装过的包，以及他们的版本和大小：
 
 
+我们可以用这个功能发现应用的兼容性，或者排序系统包的大小查看那个占用了更大的空间。
 
-We could use this to verify compatibility with an application we’re building, or maybe sort the packages by size in another one of our images and see which ones are taking up the most space.
-
-For more information about this tool as well as a breakdown with examples, uses, and inner workings of the tool, please take a look at documentation on our GitHub page. Happy diffing!
-
-Special thanks to Colette Torres and Abby Tisdale, our software engineering interns who helped build the tool from the ground up.
+更多信息和实例，可以查看github上的文档。
+特别感谢我们的实习软件工程师Colette Torres和Abby Tisdale, 他们帮忙编译了这个工具。
