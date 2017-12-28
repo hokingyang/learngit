@@ -91,23 +91,18 @@ k8s内置许多不同类型的调度策略，可以调度长生命周期的HTTP�
 1. 对优先级进行设置
 2. 将某些作业重复地迁移到k8s，如果发现问题，就回滚，修复问题，再次尝试。
 
-Strategy 5: Investigate Kubernetes bugs (and fix them)
-We set out a rule at the beginning of the project: if Kubernetes does something surprising or unexpected, we have to investigate, figure out why, and come up with a remediation.
+##策略5：发现bugs（修复它）##
+项目开始前我们制定了一些准则，如果k8s发现异常，需要查明原因，然后修正问题。
+查找原因非常消耗时间但是很值得。如果只是绕过k8s系统带来的问题，对未来采用更大规模集群只能是心怀恐惧。
+采用此策略后，我们发现了k8s中一些bug（我们能够修复）。
+以下就是我们发现的问题汇总：
+1.作业名长于52个字符的Cronjobs自动失败
+2.挂起状态的Pod有时候会彻底阻塞
+3.调度器每三个小时会崩坍一次
+4.Flanel维护的hostgw后端并不覆盖过期的路由表
+修复这些bugs使得我们对k8s项目更加有信心，不只是解决了问题，而且还因为它们接受了我们的补丁以及有一套很好的跟踪修复流程。
 
-Investigating each issue is time consuming, but very important. If we simply dismissed flaky and strange behaviour in Kubernetes as a function of how complex distributed systems can become, we’d feel afraid of being on call for the resulting buggy cluster.
+跟其他软件一样，k8s肯定有各种bugs。特别地，我们眼中依赖调度器（因为我们的cron作业会经常创建新pod），调度器使用的缓存会经常出现bugs，回退或者崩坍。缓存是个难点，但是因为可以访问源码，因此我们可以自己处理这些问题。
+另外一个值得讨论的问题是k8s pod采用的eviction迁移逻辑。k8s有一个模块叫节点控制，负责当某个节点失效时将其上运行的pods迁移到其它节点上。有可能所有节点暂时无响应（例如，因为网络或者配置问题），此时k8s会将集群内所有pods都终止。我们测试早期就发现了这个问题。
+如果运行大规模集群，就要仔细阅读节点控制器文档，考虑配置，压力测试。每次当修改这些配置（例如--pod-eviction-timeout），进行测试时，总是有惊讶的事情发生。所以尽早在测试环境中发现问题总比在凌晨三点生产系统出问题好。
 
-After taking this approach, we discovered (and were able to fix!) several bugs in Kubernetes.
-
-Here are some kinds of issues that we found during these tests:
-
-Cronjobs with names longer than 52 characters silently fail to schedule jobs (fixed here).
-Pods would sometimes get stuck in the Pending state forever (fixed here and here).
-The scheduler would crash every 3 hours (fixed here).
-Flannel’s hostgw backend didn’t replace outdated route table entries (fixed here).
-Fixing these bugs made us feel much better about our use of the Kubernetes project—not only did it work relatively well, but they also accept patches and have a good PR review process.
-
-Kubernetes definitely has bugs, like all software. In particular, we use the scheduler very heavily (because our cron jobs are constantly creating new pods), and the scheduler’s use of caching sometimes results in bugs, regressions, and crashes. Caching is hard! But the codebase is approachable and we’ve been able to handle the bugs we encountered.
-
-One other issue worth mentioning is Kubernetes’ pod eviction logic. Kubernetes has a component called the node controller which is responsible for evicting pods and moving them to another node if a node becomes unresponsive. It’s possible for all nodes to temporarily become unresponsive (e.g. due to a networking or configuration issue), and in that case Kubernetes can terminate all pods in the cluster. This happened to us relatively early on in our testing.
-
-If you’re running a large Kubernetes cluster, carefully read through the node controller documentation, think through the settings carefully, and test extensively. Every time we’ve tested a configuration change to these settings (e.g. --pod-eviction-timeout) by creating network partitions, surprising things have happened. It’s always better to discover these surprises in testing rather than at 3am in production.
