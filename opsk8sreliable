@@ -57,3 +57,57 @@ k8s内置许多不同类型的调度策略，可以调度长生命周期的HTTP�
 3. syncAll服务从k8s API中获取所有cronjobs, 检索列表，决定下一个运行那个作业，并启动它。
 核心逻辑很简单，但是最重要的是，如果有什么bug，我们应该能够修复。
 
+##策略2：压力测试##
+开始创建集群前，我们做了不少压力测试。我们并不担心k8s集群能够处理多少节点（我们计划部署大约20个节点），但是我们很关注k8s能处理多少cron作业（我们计划至少每分钟50个）。
+我们在三节点集群上测试，创建了1000个每分钟运行一次的cron作业。这些作业只是简单运行bash -c 'echo hello world'，只是为了测试集群调度和编排能力，而不是测试计算资源消耗。
+测试集群无法做到每分钟处理1000个cron作业，我们发现每个节点最多能做到每秒最多一个pod，集群每分钟可以跑200个cron作业。因为我们只是希望每分钟跑50个作业，因此我们认为这不会是个问题。
+
+##策略3：重点在高可用etcd集群##
+运行k8s集群最重要的事情还是运行etcd。etcd是k8s集群心脏，所有集群相关数据都存放在这里，除了etcd之外的都是无状态量。如果etcd失效，尽管服务还在运行，但是无法对k8s集群修改。
+下图展示的是etcd如何作为心脏起效的：API服务器作为在etcd之前提供是无状态、认证服务，其他组件都通过API服务器跟etcd沟通。
+
+【图2】
+
+运行时，有两个重要的观念：
+1.为了避免集群节点故障，必须配置副本replication。目前我们有三个副本。
+2.确保有足够IO带宽。我们使用etcd版本有个问题，当某个节点因为fsync造成延迟时会触发持续的选举，造成集群不稳定。通过确保每个节点有足够的IO带宽（比etcd些操作要多）解决了这个问题
+
+设置副本并不是一个一蹴而就的事情，我们仔细调整此参数最终实现丢失一个节点，集群可以很稳健地恢复。
+以下是我们对etcd所做的操作：
+1.设置副本
+2.监控etcd服务是否有效
+3.写简单工具可以很容易激活新etcd节点，并将它们加入集群
+4.改写etcd使得一个生产系统可以有一套etcd集群运行
+5.测试从etcd备份中恢复
+6.测试0时间重建集群
+很高兴我们在早期就做了这些测试。某个周五早上，某套生产系统的一个etcd节点停止服务，我们收到预警，停止了此节点，启动了新节点，加入集群，k8s并没因为这个故障影响服务。非常棒！！
+
+##策略4：逐渐将作业迁移到k8s上来##
+迁移过程中需要避免出现服务停止。迁移成功的秘诀不是如何避免犯错，而是如何设计迁移策略减少错误带来的影响。
+幸运的是我们有很多作业要迁移到新集群上，因此可以先从低优先级的作业开始，一般他们出现一到两个错误是可以接受的。
+开始前，我们开发了一些易用的工具可以帮助作业在新旧集群之间在五分钟之内切换，这种工具减小了错误的影响，如果碰到没有预见的问题，就把它切换回旧集群，修复问题，然后再迁移一遍。
+
+以下是我们所采用的迁移策略：
+1. 对优先级进行设置
+2. 将某些作业重复地迁移到k8s，如果发现问题，就回滚，修复问题，再次尝试。
+
+Strategy 5: Investigate Kubernetes bugs (and fix them)
+We set out a rule at the beginning of the project: if Kubernetes does something surprising or unexpected, we have to investigate, figure out why, and come up with a remediation.
+
+Investigating each issue is time consuming, but very important. If we simply dismissed flaky and strange behaviour in Kubernetes as a function of how complex distributed systems can become, we’d feel afraid of being on call for the resulting buggy cluster.
+
+After taking this approach, we discovered (and were able to fix!) several bugs in Kubernetes.
+
+Here are some kinds of issues that we found during these tests:
+
+Cronjobs with names longer than 52 characters silently fail to schedule jobs (fixed here).
+Pods would sometimes get stuck in the Pending state forever (fixed here and here).
+The scheduler would crash every 3 hours (fixed here).
+Flannel’s hostgw backend didn’t replace outdated route table entries (fixed here).
+Fixing these bugs made us feel much better about our use of the Kubernetes project—not only did it work relatively well, but they also accept patches and have a good PR review process.
+
+Kubernetes definitely has bugs, like all software. In particular, we use the scheduler very heavily (because our cron jobs are constantly creating new pods), and the scheduler’s use of caching sometimes results in bugs, regressions, and crashes. Caching is hard! But the codebase is approachable and we’ve been able to handle the bugs we encountered.
+
+One other issue worth mentioning is Kubernetes’ pod eviction logic. Kubernetes has a component called the node controller which is responsible for evicting pods and moving them to another node if a node becomes unresponsive. It’s possible for all nodes to temporarily become unresponsive (e.g. due to a networking or configuration issue), and in that case Kubernetes can terminate all pods in the cluster. This happened to us relatively early on in our testing.
+
+If you’re running a large Kubernetes cluster, carefully read through the node controller documentation, think through the settings carefully, and test extensively. Every time we’ve tested a configuration change to these settings (e.g. --pod-eviction-timeout) by creating network partitions, surprising things have happened. It’s always better to discover these surprises in testing rather than at 3am in production.
