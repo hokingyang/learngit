@@ -407,3 +407,42 @@ function parseBookFile (filePath) {
 【图九】
 到这步，脚本顺利分理出书名和作者，脚本还会因为同样问题出错（调用还未定义的函数）
 
+##4.5 在ES中索引数据文件
+最后一步在load_data.js中添加insertBookData函数，将上一节中提取数据插入Elasticsearch索引中。
+{{{
+/** Bulk index the book data in Elasticsearch */
+async function insertBookData (title, author, paragraphs) {
+  let bulkOps = [] // Array to store bulk operations
+
+  // Add an index operation for each section in the book
+  for (let i = 0; i < paragraphs.length; i++) {
+    // Describe action
+    bulkOps.push({ index: { _index: esConnection.index, _type: esConnection.type } })
+
+    // Add document
+    bulkOps.push({
+      author,
+      title,
+      location: i,
+      text: paragraphs[i]
+    })
+
+    if (i > 0 && i % 500 === 0) { // Do bulk insert in 500 paragraph batches
+      await esConnection.client.bulk({ body: bulkOps })
+      bulkOps = []
+      console.log(`Indexed Paragraphs ${i - 499} - ${i}`)
+    }
+  }
+
+  // Insert remainder of bulk ops array
+  await esConnection.client.bulk({ body: bulkOps })
+  console.log(`Indexed Paragraphs ${paragraphs.length - (bulkOps.length / 2)} - ${paragraphs.length}\n\n\n`)
+}
+}}}
+此函数索引书籍段落，包括作者、书名和段落元数据信息。使用bulk操作插入段落，比分别索引段落效率高很多。
+>批量bulk索引这些段落可以使本应用运行在低配电脑上（我只有1.7G内存），如果你有高配电脑（大于4G内容），也许不用考虑批量bulk操作。
+
+运行docker-compose up -d --build 和 docker exec gs-api "node" "server/load_data.js" 输出如下：
+【图十】
+
+#5 搜索
