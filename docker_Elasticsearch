@@ -1,0 +1,99 @@
+【原文地址参见https://blog.patricktriest.com/text-search-docker-elasticsearch/】
+
+本文源码可以在GitHub repository 中找到 - https://github.com/triestpa/guttenberg-search。
+
+给应用添加快速、灵活的全文本搜索对谁都不是一件容易的事情。许多主流数据库，如PostgreSQL和MongoDB，​受限于查询和索引结构，只提供基础文本搜索能力。为了提供高效全文本搜索一般都需要一个独立的数据库。Elasticsearch正是这样一个能够提供灵活性和快速全文本搜索能力的开源数据库。
+
+本文采用Docker来设置依赖环境。Docker是目前最常见的容器化引擎，Uber、Spotify、ADP和Paypal都是用这个技术，它的优势在于操作系统无关，可以运行在Windows、macOS和Linux之上------写操作指南很容易。如果从来没有用过Docker也没问题，本文会详细提供配置文件。
+
+本文也分别采用Node.js(采用Koa框架)，和Vue.js创建搜索API和前端web应用。
+
+#一、什么是Elasticsearch#
+现代应用中全文本检索是高请求负载的应用。搜索功能也是比较困难完成的功能（许多大众网站都有subpar功能，但不是返回很慢就是返回结果不准确），大部分原因是因为底层数据库：许多标准关系型数据库只能提供基本字符串匹配功能，而对CONTAINS或者LIKE SQL查询只能提供有限支持。
+
+而本文提供的搜索应用能够提供：
+1. 快速：查询结果应该实时返回，提高用户体验。
+2. 灵活：根据不同数据和使用场景，可以调整搜索过程​
+3. 最佳建议：对于输入错误，返回最可能的结果。
+4. 全文本：除了搜索关键词和标签之外，希望能够搜索到所有匹配文本​
+
+实现以上要求的搜索应用，最好采用一个为全文本检索优化的数据库，这也是本文采用Elasticsearch的原因。Elasticsearch是一个用Java开发的，开源的内存数据库，最开始是包含在Apache Lucene库中。以下是一些官方给出的Elasticsearch使用场景：
+1. Wikipedia使用Elasticsearch提供全文检索，提供高亮显示、search-as-you-type和did-you-mean建议等功能。
+2. Guardian使用Elasticsearch将访问者社交数据​整合反馈给作者。
+3.Stack Overflow将位置信息和more-like-this功能与全文本检索整合提供相关问题和答案。
+4.Github使用Elasticsearch在一千三百亿行代码中进行搜索。​
+
+##1.1 Elasticsearch有什么独特之处##
+本质上，Elasticsearch通过使用反向索引提供快速和灵活的全文本搜索。
+
+“索引”是一种在数据库中提供快速查询和返回的数据结构。数据库一般将数据域和相应表位置生成索引信息。将索引信息存放在一个可搜索的数据结构中（一般是B-Tree），数据库可以为优化数据请求获得线性搜索响应（例如“Find the row with ID=5”）。
+【图一】
+
+可以把数据库索引看做学校图书馆卡片分类系统，只要知道书名和作者，就可以准确告诉查找内容的入口。数据库表一般都有多个索引表，可以加速查询（例如，对name列的索引可以极大加速对特定name的查询）。
+而反向索引工作原理与此完全不同。每行（或者每个文档）的内容被分拆​，每个入口（本案例中是每个单词）反向指向包含它的文档。
+【图二】
+反向索引数据结构对查询“football”位于哪个文档这种查询非常迅速。Elasticsearch使用内存优化反向索引，可以实现强大和客制化全文本检索任务。
+
+#二、项目安装#
+##2.0 Docker##
+本文使用Docker作为项目开发环境。Docker是一个容器化引擎，应用可以运行在隔离环境中，不依赖于本地草走系统和开发环境。因为可以带来巨大灵活性和客制化，许多互联网公司应用都已经运行在容器中。
+
+对于作者来说，Docker可以提供平台一致性安装环境（可以运行在Windows，macOS和linux系统）。一般Node.js，Elasticsearch和Nginx都需要不同安装步骤，如果运行在Docker环境中只需要定义好不同配置文件，就可以运行在任何Docker环境。另外，由于应用各自运行在隔离容器中，与本地宿主机关系很小，因此类似于“但是我这可以运行啊”这种排错问题就很少会出现。
+
+##2.1 安装Docker和Docker-compose##
+本项目只需要Docker和Docker-compose环境。后者是Docker官方工具，在单一应用栈中编排定义多个容器配置。
+安装Docker - https://docs.docker.com/engine/installation/
+安装Docker Compose - https://docs.docker.com/compose/install/
+
+##2.2 设置项目安装目录##
+创建一个项目根目录（例如guttenberg_search）,在其下定义两个子目录：
+/public - 为前端 Vue.js webapp存放数据.
+/server - 服务器端Node.js 源文件
+
+##2.3 添加docker-compose配置文件##
+下一步，创建docker-compose.yml文件，定义应用栈中每个容器的配置：
+gs-api - Node.js 容器后端应用逻辑.
+gs-frontend - 为前端webapp提供服务的Nginx容器
+gs-search- 存储搜索数据的Elasticsearch容器
+
+{{{version: '3'
+
+services:
+  api: # Node.js App
+    container_name: gs-api
+    build: .
+    ports:
+      - "3000:3000" # Expose API port
+      - "9229:9229" # Expose Node process debug port (disable in production)
+    environment: # Set ENV vars
+     - NODE_ENV=local
+     - ES_HOST=elasticsearch
+     - PORT=3000
+    volumes: # Attach local book data directory
+      - ./books:/usr/src/app/books
+
+  frontend: # Nginx Server For Frontend App
+    container_name: gs-frontend
+    image: nginx
+    volumes: # Serve local "public" dir
+      - ./public:/usr/share/nginx/html
+    ports:
+      - "8080:80" # Forward site to localhost:8080
+
+  elasticsearch: # Elasticsearch Instance
+    container_name: gs-search
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.1.1
+    volumes: # Persist ES data in seperate "esdata" volume
+      - esdata:/usr/share/elasticsearch/data
+    environment:
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - discovery.type=single-node
+    ports: # Expose Elasticsearch ports
+      - "9300:9300"
+      - "9200:9200"
+
+volumes: # Define seperate volume for Elasticsearch data
+  esdata:}}}
+ 
+ 此文件定义应用栈，而不需要在本地宿主机安装Elasticsearch、Node.js、或者Nginx。每个容器都对宿主机开放相应端口，以便从宿主机访问和排错Node API，Elasticsearch实例和前端应用。
