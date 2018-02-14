@@ -97,3 +97,118 @@ volumes: # Define seperate volume for Elasticsearch data
   esdata:}}}
  
  此文件定义应用栈，而不需要在本地宿主机安装Elasticsearch、Node.js、或者Nginx。每个容器都对宿主机开放相应端口，以便从宿主机访问和排错Node API，Elasticsearch实例和前端应用。
+ 
+ ##2.4 添加Dockerfile
+ 本文使用官方的Nginx和Elasticsearch映像，但是需要重新为Node.js创建自己的映像。在
+ 
+应用根目录定义一个简单的Dockerfile配置文件
+{{{# Use Node v8.9.0 LTS
+FROM node:carbon
+
+# Setup app working directory
+WORKDIR /usr/src/app
+
+# Copy package.json and package-lock.json
+COPY package*.json ./
+
+# Install app dependencies
+RUN npm install
+
+# Copy sourcecode
+COPY . .
+
+# Start app
+CMD [ "npm", "start" ]}}}
+此Docker配置文件中将应用源码拷贝进来，安装了NPM依赖包，形成了自己的映像。同样需要添加一个.dockerignore文件，避免不需要的文件被拷入。
+{{{node_modules/
+npm-debug.log
+books/
+public/}}}
+
+>注意：不需要将node_modules拷入，因为我们后续要用npm install来安装这些进程。如果拷入node_modules到容器中容易引起兼容性问题。例如在macOS上安装bcrypt包，如果将此module拷入Ubuntu容器就会引起操作系统不匹配问题。
+
+##2.5 添加基础文件
+测试配置文件前，还需要往应用目录拷入一下占位文件。在public/index.html中加入如下基础配置信息：
+{{{<html><body>Hello World From The Frontend Container</body></html>}}}
+下一步，在server/app.js中加入Node.js的应用文件。
+{{{const Koa = require('koa')
+const app = new Koa()
+
+app.use(async (ctx, next) => {
+  ctx.body = 'Hello World From the Backend Container'
+})
+
+const port = process.env.PORT || 3000
+
+app.listen(port, err => {
+  if (err) console.error(err)
+  console.log(`App Listening on Port ${port}`
+  })}}}
+  
+最后，加入package.json节点配置文件：
+{{{
+{
+  "name": "guttenberg-search",
+  "version": "0.0.1",
+  "description": "Source code for Elasticsearch tutorial using 100 classic open source books.",
+  "scripts": {
+    "start": "node --inspect=0.0.0.0:9229 server/app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/triestpa/guttenberg-search.git"
+  },
+  "author": "patrick.triest@gmail.com",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/triestpa/guttenberg-search/issues"
+  },
+  "homepage": "https://github.com/triestpa/guttenberg-search#readme",
+  "dependencies": {
+    "elasticsearch": "13.3.1",
+    "joi": "13.0.1",
+    "koa": "2.4.1",
+    "koa-joi-validate": "0.5.1",
+    "koa-router": "7.2.1"
+  }
+}
+}}}
+此文件定义应用开始命令和Node.js依赖包。
+>注意：不需要特意运行npm install，容器创建时候会自动安装依赖包
+
+##2.6 开始测试
+开起来都准备好了，接下来可以测试了。从项目根目录开始，运行docker-compose,会自动创建Node.js容器应用。
+【图三】
+运行docker-compose up启动应用：
+>注意：这一步可能会运行时间比较长，因为Docker可能需要下载基础映像。以后执行速度会很快，因为本地已经有了基础映像。
+
+访问localhost:8080，应该看到如下图输出“hello world”
+【图五】
+访问localhost:3000 验证服务器端返回“hello world”信息
+【图六】
+
+最后，访问localhost:9200确认Elasticsearch是否运行，如果正常，应该返回如下输出：
+{{{
+{
+  "name" : "SLTcfpI",
+  "cluster_name" : "docker-cluster",
+  "cluster_uuid" : "iId8e0ZeS_mgh9ALlWQ7-w",
+  "version" : {
+    "number" : "6.1.1",
+    "build_hash" : "bd92e7f",
+    "build_date" : "2017-12-17T20:23:25.338Z",
+    "build_snapshot" : false,
+    "lucene_version" : "7.1.0",
+    "minimum_wire_compatibility_version" : "5.6.0",
+    "minimum_index_compatibility_version" : "5.0.0"
+  },
+  "tagline" : "You Know, for Search"
+}
+}}}
+如果所有URL输出都正常，恭喜，整个应用框架可以正常工作，下面开始进入真正有趣的部分了。
+
+
+
+
+
+
