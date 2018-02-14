@@ -396,12 +396,14 @@ function parseBookFile (filePath) {
 }
 }}}
 此函数执行以下功能：
-1. 
-Read book text from the file system.
-Use regular expressions (check out this post for a primer on using regex) to parse the book title and author.
-Identify the start and end of the book content, by matching on the all-caps "Project Guttenberg" header and footer.
-Extract the book text content.
-Split each paragraph into its own array.
-Clean up the text and remove blank lines.
-As a return value, we'll form an object containing the book's title, author, and an array of paragraphs within the book.
+1.从文件系统中读入文件
+2.使用正则表达式抽取书名和作者
+3.通过定位***，来抽取书中内容
+4.解析出段落
+5.清洗数据，移除空行
+最后返回一个包含书名、作者和段落列表的对象。
+
+运行docker-compose up -d --build和docker exec gs-api "node" "server/load_data.js" ，输出如下：
+【图九】
+到这步，脚本顺利分理出书名和作者，脚本还会因为同样问题出错（调用还未定义的函数）
 
