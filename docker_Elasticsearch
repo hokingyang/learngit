@@ -446,3 +446,54 @@ async function insertBookData (title, author, paragraphs) {
 【图十】
 
 #5 搜索
+Elasticsearch已经灌入100本书籍数据（大约230000段落），本节做一些搜索操作。
+##5.0 简单http查询
+首先，使用http://localhost:9200/library/_search?q=text:Java&pretty ， 这里使用全文本查询关键字“Java”，输入应该如下：
+{{{
+{
+  "took" : 11,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : 13,
+    "max_score" : 14.259304,
+    "hits" : [
+      {
+        "_index" : "library",
+        "_type" : "novel",
+        "_id" : "p_GwFWEBaZvLlaAUdQgV",
+        "_score" : 14.259304,
+        "_source" : {
+          "author" : "Charles Darwin",
+          "title" : "On the Origin of Species",
+          "location" : 1080,
+          "text" : "Java, plants of, 375."
+        }
+      },
+      {
+        "_index" : "library",
+        "_type" : "novel",
+        "_id" : "wfKwFWEBaZvLlaAUkjfk",
+        "_score" : 10.186235,
+        "_source" : {
+          "author" : "Edgar Allan Poe",
+          "title" : "The Works of Edgar Allan Poe",
+          "location" : 827,
+          "text" : "After many years spent in foreign travel, I sailed in the year 18-- , from the port of Batavia, in the rich and populous island of Java, on a voyage to the Archipelago of the Sunda islands. I went as passenger--having no other inducement than a kind of nervous restlessness which haunted me as a fiend."
+        }
+      },
+      ...
+    ]
+  }
+}
+}}}
+
+
+
+
+
