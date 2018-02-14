@@ -207,8 +207,88 @@ app.listen(port, err => {
 }}}
 如果所有URL输出都正常，恭喜，整个应用框架可以正常工作，下面开始进入真正有趣的部分了。
 
+#3 接入Elasticsearch
+第一步是要接入本地Elasticsearch实例
+##3.0 加入ES链接模块
+在server/connection.js中加入如下初始化代码：
+{{{
+const elasticsearch = require('elasticsearch')
 
+// Core ES variables for this project
+const index = 'library'
+const type = 'novel'
+const port = 9200
+const host = process.env.ES_HOST || 'localhost'
+const client = new elasticsearch.Client({ host: { host, port } })
 
+/** Check the ES connection status */
+async function checkConnection () {
+  let isConnected = false
+  while (!isConnected) {
+    console.log('Connecting to ES')
+    try {
+      const health = await client.cluster.health({})
+      console.log(health)
+      isConnected = true
+    } catch (err) {
+      console.log('Connection Failed, Retrying...', err)
+    }
+  }
+}
 
+checkConnection()
+}}}
+下面用docker-compose来重建更改过的应用。之后运行docker-compose up -d重新启动后台进程。
+应用启动后，命令行运行docker exec gs-api "node" "server/connection.js"，在容器中运行脚本，应该可以看到如下输出：
+{{{
+{ cluster_name: 'docker-cluster',
+  status: 'yellow',
+  timed_out: false,
+  number_of_nodes: 1,
+  number_of_data_nodes: 1,
+  active_primary_shards: 1,
+  active_shards: 1,
+  relocating_shards: 0,
+  initializing_shards: 0,
+  unassigned_shards: 1,
+  delayed_unassigned_shards: 0,
+  number_of_pending_tasks: 0,
+  number_of_in_flight_fetch: 0,
+  task_max_waiting_in_queue_millis: 0,
+  active_shards_percent_as_number: 50 }
+  }}}
+  如果一切顺利，就可以把最后一行的checkConnection()调用删掉，因为最终应用会从connection模块之外调用它。
+  
+  ##3.1 给Reset Index添加Helper功能
+在server/connection.js 文件checkConnection之下添加如下内容, 以便更加方便重置索引。
+{{{
+/** Clear the index, recreate it, and add mappings */
+async function resetIndex () {
+  if (await client.indices.exists({ index })) {
+    await client.indices.delete({ index })
+  }
 
+  await client.indices.create({ index })
+  await putBookMapping()
+}
+}}}
+
+##3.2 添加Book Schema
+紧接resetIndex之后，添加如下功能：
+{{{
+/** Add book section schema mapping to ES */
+async function putBookMapping () {
+  const schema = {
+    title: { type: 'keyword' },
+    author: { type: 'keyword' },
+    location: { type: 'integer' },
+    text: { type: 'text' }
+  }
+
+  return client.indices.putMapping({ index, type, body: { properties: schema } })
+}
+}}}
+此处为书目索引定义了mapping（映射）。Elasticsearch索引类似于SQL的表或者MongoDB的connection。通过mapping我们可以定义文档每个域和数据类型。Elasticsearch是schema-less，因此技术上说不需要添加mapping，但是通过mapping可以更好控制数据处理方式。
+
+例如，有两个关键词域，分别是“titile”和“author”，文本定为“text”域。这样定义搜索引擎会有完全不同的动作：搜索中，引擎会在text域中查找可能匹配项，而在关键词域则是精确匹配。看起来差别不大，但却对搜索行为和搜索速度有很大影响。在文件最后输出功能和属性，可以被其它模块访问。
 
