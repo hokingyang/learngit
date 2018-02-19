@@ -1033,8 +1033,22 @@ Elasticsearch是计算资源消耗的应用。官方建议至少运行在64G以�
 
 这个操作有些复杂，依赖现有的软件栈。有许多开源资源可选，既有监控MongoDB操作日志并自动同步删除数据到ES的进程，到创建客制化基于PSQL索引自动与ES通讯的PostgreSQL插件。
 
+如果之前提到的选项都无效，可以在服务端代码中根据数据库变化手动更新Elasticsearch索引。但是我认为这种选择并不是最佳的，因为使用客制化商业逻辑保持ES同步很复杂，而且有可能会引入很多bugs。
 
-If none of the available pre-built options work, you could always just add some hooks into your server code to update the Elasticsearch index manually based on database changes. I would consider this final option to be a last resort, since keeping ES in sync using custom business logic can be complex, and is likely to introduce numerous bugs to the application.
+Elasticsearch与主数据库同步需求，与其说是ES的弱点，不如说是架构复杂造成的；给应用添加一个专用搜索引擎是一件值得考虑的事情，但是要折衷考虑带来的问题。
 
-The need to sync Elasticsearch with a primary database is more of an architectural complexity than it is a specific weakness of ES, but it's certainly worth keeping in mind when considering the tradeoffs of adding a dedicated search engine to your app.
+#结论
+全文本搜索对现代应用来说是一个很重要的功能，同时也是很难完成的功能。Elasticsearch则提供了实现快速和客制化搜索的实现方式，但是也有其它替代选项。Apache Solr是另外一个基于Apache Lucene（Elasticsearch核心也采用同样的库）实现的开源类似实现。Algolia则是最近很活跃的search-as-a-service模式web平台，对初学者来说更加容易上手（缺点是客制化不强，而且后期投入可能很大）。
+
+“search-bar”模式功能远不仅是Elasticsearch的唯一使用场景。ES也是一个日志存储和分析常用工具，一般用于ELK架构（Elasticsearch，Logstash，Kibana）。ES实现的灵活全文本搜索对数据科学家任务也很有用，例如修改、规范化数据集拼写或者搜索数据集。
+
+如下是有关本项目的考虑：
+1.在应用中添加更多喜爱的书，创建自己私有库搜索殷勤
+2.通过索引google scholar论文，创建一个防抄袭引擎
+3.通过索引字典中单词到ES中，建立拼写检查应用
+4.通过加载Common Crawl Corpus到ES（注意，有50亿页内容，是一个非常巨大数据集），建立自己的与谷歌竞争的互联网搜索引擎
+5.在新闻业中使用Elasticsearch：在例如Panama论文和Paradise论文集中搜索特点名称和词条
+
+本文所有代码都是开源的，可以在Github库中找到，具体[下载地址](https://github.com/triestpa/guttenberg-search
+)。希望本文对大家有所帮助。
 
