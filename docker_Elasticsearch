@@ -1026,4 +1026,16 @@ router.get('/paragraphs',
 Elasticsearch是计算资源消耗的应用。官方建议至少运行在64G以上内存的设备上，不建议少于8GB内存。Elasticsearch是一个内存数据库，因此查询速度会很快，但是也会消耗大量内存。生产中，强烈推荐运行Elasticsearch集群提供高可用性、自动分片和数据冗余功能。
 我在一个1.7GB的云设备上（每月15美金）运行以上示例（search.patriktriest.com），这些资源仅是能够运行Elasticsearch节点。有时整个节点会在初始装载数据时候hang住。从我的经验看，Elasticsearch比传统的PostgreSQL和MongoDB跟消耗资源，如果需要提供理想服务效果，成本可能会很贵。
 
+##9.1 数据库之间的同步
+对许多应用，将数据存放在Elasticsearch中并不是理想的选择。建议将ES作为交易型数据库，但是因为ES不兼容ACID标准（当扩展系统导入数据时，可能造成写入操作丢失的问题），所以也不推荐。很多场景下，ES承担着很特殊的角色，例如全文本查询，这种场景下需要某些数据从主数据库复制到Elasticsearch数据库中。
+
+例如，假设我们需要将用户存放到PostgreSQL表中，但是使用ES承担用户查询功能。如果一个用户，“Albert”，决定修改名字为“Al”，就需要在主PostgreSQL库和ES集群中同时进行修改。
+
+
+
+This can be a tricky integration to get right, and the best answer will depend on your existing stack. There are a multitude of open-source options available, from a process to watch a MongoDB operation log and automatically sync detected changes to ES, to a PostgresSQL plugin to create a custom PSQL-based index that communicates automatically with Elasticsearch.
+
+If none of the available pre-built options work, you could always just add some hooks into your server code to update the Elasticsearch index manually based on database changes. I would consider this final option to be a last resort, since keeping ES in sync using custom business logic can be complex, and is likely to introduce numerous bugs to the application.
+
+The need to sync Elasticsearch with a primary database is more of an architectural complexity than it is a specific weakness of ES, but it's certainly worth keeping in mind when considering the tradeoffs of adding a dedicated search engine to your app.
 
