@@ -666,6 +666,224 @@ router.get('/search',
 
 可以用docker-compose logs -f api 查看日志。
 
+#7 前端应用
+/search服务端硬件可以了，本节写一段简单前端web应用测试API。
 
+##7.1 Vue.js
+本节使用Vue.js来开发前端。创建一个新文件/public/app.js：
+{{{
+const vm = new Vue ({
+  el: '#vue-instance',
+  data () {
+    return {
+      baseUrl: 'http://localhost:3000', // API url
+      searchTerm: 'Hello World', // Default search term
+      searchDebounce: null, // Timeout for search bar debounce
+      searchResults: [], // Displayed search results
+      numHits: null, // Total search results found
+      searchOffset: 0, // Search result pagination offset
+
+      selectedParagraph: null, // Selected paragraph object
+      bookOffset: 0, // Offset for book paragraphs being displayed
+      paragraphs: [] // Paragraphs being displayed in book preview window
+    }
+  },
+  async created () {
+    this.searchResults = await this.search() // Search for default term
+  },
+  methods: {
+    /** Debounce search input by 100 ms */
+    onSearchInput () {
+      clearTimeout(this.searchDebounce)
+      this.searchDebounce = setTimeout(async () => {
+        this.searchOffset = 0
+        this.searchResults = await this.search()
+      }, 100)
+    },
+    /** Call API to search for inputted term */
+    async search () {
+      const response = await axios.get(`${this.baseUrl}/search`, { params: { term: this.searchTerm, offset: this.searchOffset } })
+      this.numHits = response.data.hits.total
+      return response.data.hits.hits
+    },
+    /** Get next page of search results */
+    async nextResultsPage () {
+      if (this.numHits > 10) {
+        this.searchOffset += 10
+        if (this.searchOffset + 10 > this.numHits) { this.searchOffset = this.numHits - 10}
+        this.searchResults = await this.search()
+        document.documentElement.scrollTop = 0
+      }
+    },
+    /** Get previous page of search results */
+    async prevResultsPage () {
+      this.searchOffset -= 10
+      if (this.searchOffset < 0) { this.searchOffset = 0 }
+      this.searchResults = await this.search()
+      document.documentElement.scrollTop = 0
+    }
+  }
+})
+}}}
+应用特别简单，只是定义一些共享数据属性，添加一个接收方法以及为结果分页的功能；搜索间隔设置为100ms，以防API被频繁调用。
+解释Vue.js如何工作超出本文的范围，如果想了解相关内容，可以查看[Vue.js官方文档](https://vuejs.org/v2/guide/).
+
+##7.1 HTML
+将/public/index.html用如下内容代替：
+
+{{{
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Elastic Library</title>
+  <meta name="description" content="Literary Classic Search Engine.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/7.0.0/normalize.min.css" rel="stylesheet" type="text/css" />
+  <link href="https://cdn.muicss.com/mui-0.9.20/css/mui.min.css" rel="stylesheet" type="text/css" />
+  <link href="https://fonts.googleapis.com/css?family=EB+Garamond:400,700|Open+Sans" rel="stylesheet">
+  <link href="styles.css" rel="stylesheet" />
+</head>
+<body>
+<div class="app-container" id="vue-instance">
+    <!-- Search Bar Header -->
+    <div class="mui-panel">
+      <div class="mui-textfield">
+        <input v-model="searchTerm" type="text" v-on:keyup="onSearchInput()">
+        <label>Search</label>
+      </div>
+    </div>
+
+    <!-- Search Metadata Card -->
+    <div class="mui-panel">
+      <div class="mui--text-headline">{{ numHits }} Hits</div>
+      <div class="mui--text-subhead">Displaying Results {{ searchOffset }} - {{ searchOffset + 9 }}</div>
+    </div>
+
+    <!-- Top Pagination Card -->
+    <div class="mui-panel pagination-panel">
+        <button class="mui-btn mui-btn--flat" v-on:click="prevResultsPage()">Prev Page</button>
+        <button class="mui-btn mui-btn--flat" v-on:click="nextResultsPage()">Next Page</button>
+    </div>
+
+    <!-- Search Results Card List -->
+    <div class="search-results" ref="searchResults">
+      <div class="mui-panel" v-for="hit in searchResults" v-on:click="showBookModal(hit)">
+        <div class="mui--text-title" v-html="hit.highlight.text[0]"></div>
+        <div class="mui-divider"></div>
+        <div class="mui--text-subhead">{{ hit._source.title }} - {{ hit._source.author }}</div>
+        <div class="mui--text-body2">Location {{ hit._source.location }}</div>
+      </div>
+    </div>
+
+    <!-- Bottom Pagination Card -->
+    <div class="mui-panel pagination-panel">
+        <button class="mui-btn mui-btn--flat" v-on:click="prevResultsPage()">Prev Page</button>
+        <button class="mui-btn mui-btn--flat" v-on:click="nextResultsPage()">Next Page</button>
+    </div>
+
+    <!-- INSERT BOOK MODAL HERE -->
+</div>
+<script src="https://cdn.muicss.com/mui-0.9.28/js/mui.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.3/vue.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.17.0/axios.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
+}}}
+
+##7.2 CSS
+添加一个新文件：/public/styles.css：
+{{{
+body { font-family: 'EB Garamond', serif; }
+
+.mui-textfield > input, .mui-btn, .mui--text-subhead, .mui-panel > .mui--text-headline {
+  font-family: 'Open Sans', sans-serif;
+}
+
+.all-caps { text-transform: uppercase; }
+.app-container { padding: 16px; }
+.search-results em { font-weight: bold; }
+.book-modal > button { width: 100%; }
+.search-results .mui-divider { margin: 14px 0; }
+
+.search-results {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-around;
+}
+
+.search-results > div {
+  flex-basis: 45%;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .search-results > div { flex-basis: 100%; }
+}
+
+.paragraphs-container {
+  max-width: 800px;
+  margin: 0 auto;
+  margin-bottom: 48px;
+}
+
+.paragraphs-container .mui--text-body1, .paragraphs-container .mui--text-body2 {
+  font-size: 1.8rem;
+  line-height: 35px;
+}
+
+.book-modal {
+  width: 100%;
+  height: 100%;
+  padding: 40px 10%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  background-color: white;
+  overflow-y: scroll;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+.pagination-panel {
+  display: flex;
+  justify-content: space-between;
+}
+
+.title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+@media (max-width: 600px) {
+  .title-row{ 
+    flex-direction: column; 
+    text-align: center;
+    align-items: center
+  }
+}
+
+.locations-label {
+  text-align: center;
+  margin: 8px;
+}
+
+.modal-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+  background: white;
+}
+}}}
+
+##7.3 测试
+打开localhost:8080，应该能够看到一个简单分页返回结果。此时可以键入一些关键词进行查询测试。
 
 
