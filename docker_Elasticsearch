@@ -526,3 +526,118 @@ module.exports = {
 5. highlights:返回额外信息，其中包含HTML格式显示匹配文本信息。
 可以调整这些参数看看具体的显示信息，可以查看[Elastic Full-Text Query DSL](https://www.elastic.co/guide/en/elasticsearch/reference/current/full-text-queries.html)获得更多信息：
 
+#6 API
+本节提供前端代码访问的HTTP API.
+##6.0 API Server
+修改server/app.js内容如下：
+{{{
+const Koa = require('koa')
+const Router = require('koa-router')
+const joi = require('joi')
+const validate = require('koa-joi-validate')
+const search = require('./search')
+
+const app = new Koa()
+const router = new Router()
+
+// Log each request to the console
+app.use(async (ctx, next) => {
+  const start = Date.now()
+  await next()
+  const ms = Date.now() - start
+  console.log(`${ctx.method} ${ctx.url} - ${ms}`)
+})
+
+// Log percolated errors to the console
+app.on('error', err => {
+  console.error('Server Error', err)
+})
+
+// Set permissive CORS header
+app.use(async (ctx, next) => {
+  ctx.set('Access-Control-Allow-Origin', '*')
+  return next()
+})
+
+// ADD ENDPOINTS HERE
+
+const port = process.env.PORT || 3000
+
+app
+  .use(router.routes())
+  .use(router.allowedMethods())
+  .listen(port, err => {
+    if (err) throw err
+    console.log(`App Listening on Port ${port}`)
+  })
+}}}
+这段代码导入服务依赖环境，为[Koa.js](koajs.com) Node API Server设置简单日志和错误处理机制。
+
+##6.1 将服务端点与查询链接起来
+这一节为Server端添加服务端点，以便暴露给Elasticsearch查询服务。
+在server/app.js中//ADD ENDPOINTS HERE 之后插入如下代码：
+{{{
+/**
+ * GET /search
+ * Search for a term in the library
+ */
+router.get('/search', async (ctx, next) => {
+    const { term, offset } = ctx.request.query
+    ctx.body = await search.queryTerm(term, offset)
+  }
+)
+}}}
+
+用docker-compose up -d --build 重启服务端。在浏览器中，调用此服务。例如:http://localhost:3000/search?term=java
+返回结果看起来应该如下：
+{{{
+{
+    "took": 242,
+    "timed_out": false,
+    "_shards": {
+        "total": 5,
+        "successful": 5,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": 93,
+        "max_score": 13.356944,
+        "hits": [{
+            "_index": "library",
+            "_type": "novel",
+            "_id": "eHYHJmEBpQg9B4622421",
+            "_score": 13.356944,
+            "_source": {
+                "author": "Charles Darwin",
+                "title": "On the Origin of Species",
+                "location": 1080,
+                "text": "Java, plants of, 375."
+            },
+            "highlight": {
+                "text": ["<em>Java</em>, plants of, 375."]
+            }
+        }, {
+            "_index": "library",
+            "_type": "novel",
+            "_id": "2HUHJmEBpQg9B462xdNg",
+            "_score": 9.030668,
+            "_source": {
+                "author": "Unknown Author",
+                "title": "The King James Bible",
+                "location": 186,
+                "text": "10:4 And the sons of Javan; Elishah, and Tarshish, Kittim, and Dodanim."
+            },
+            "highlight": {
+                "text": ["10:4 And the sons of <em>Javan</em>; Elishah, and Tarshish, Kittim, and Dodanim."]
+            }
+        }
+        ...
+      ]
+   }
+}
+}}}
+
+
+
+
