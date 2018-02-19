@@ -638,6 +638,34 @@ router.get('/search', async (ctx, next) => {
 }
 }}}
 
+##6.2 输入验证
+此时服务端还是很脆弱，下面对输入参数进行检查，对无效或者缺失的输入进行甄别，并返回错误。
+我们使用Joi和Koa-Joi-Validate库进行这种类型的验证：
+{{{
+/**
+ * GET /search
+ * Search for a term in the library
+ * Query Params -
+ * term: string under 60 characters
+ * offset: positive integer
+ */
+router.get('/search',
+  validate({
+    query: {
+      term: joi.string().max(60).required(),
+      offset: joi.number().integer().min(0).default(0)
+    }
+  }),
+  async (ctx, next) => {
+    const { term, offset } = ctx.request.query
+    ctx.body = await search.queryTerm(term, offset)
+  }
+)
+}}}
+现在如果重启服务端，并做一个缺失参数查询(http://localhost:3000/search)，将会返回HTTP 400错误，例如：Invalid URL Query - child "term" fails because ["term" is required]。
+
+可以用docker-compose logs -f api 查看日志。
+
 
 
 
