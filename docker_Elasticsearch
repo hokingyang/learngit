@@ -885,5 +885,5 @@ body { font-family: 'EB Garamond', serif; }
 
 ##7.3 测试
 打开localhost:8080，应该能够看到一个简单分页返回结果。此时可以键入一些关键词进行查询测试。
-
+【图十一】
 
