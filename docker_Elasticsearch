@@ -1031,9 +1031,8 @@ Elasticsearch是计算资源消耗的应用。官方建议至少运行在64G以�
 
 例如，假设我们需要将用户存放到PostgreSQL表中，但是使用ES承担用户查询功能。如果一个用户，“Albert”，决定修改名字为“Al”，就需要在主PostgreSQL库和ES集群中同时进行修改。
 
+这个操作有些复杂，依赖现有的软件栈。有许多开源资源可选，既有监控MongoDB操作日志并自动同步删除数据到ES的进程，到创建客制化基于PSQL索引自动与ES通讯的PostgreSQL插件。
 
-
-This can be a tricky integration to get right, and the best answer will depend on your existing stack. There are a multitude of open-source options available, from a process to watch a MongoDB operation log and automatically sync detected changes to ES, to a PostgresSQL plugin to create a custom PSQL-based index that communicates automatically with Elasticsearch.
 
 If none of the available pre-built options work, you could always just add some hooks into your server code to update the Elasticsearch index manually based on database changes. I would consider this final option to be a last resort, since keeping ES in sync using custom business logic can be complex, and is likely to introduce numerous bugs to the application.
 
