@@ -886,4 +886,144 @@ body { font-family: 'EB Garamond', serif; }
 ##7.3 测试
 打开localhost:8080，应该能够看到一个简单分页返回结果。此时可以键入一些关键词进行查询测试。
 【图十一】
+> 这一步不需要重新运行docker-compose up 命令使修改生效。本地public目录直接挂载在Ngnix服务器容器中，因此前端本地系统数据改变直接反应在容器化应用中。
+如果点任一个输出，没什么效果，意味着还有一些功能需要添加进应用中。
+
+#8 页面检查
+最好点击任何一个输出，可以查出上下文来自哪本书。
+
+##8.0 添加Elasticsearch查询
+首先，需要定义一个从给定书中获得段落的简单查询。在server/search.js下的module.exports中加入如下内容：
+{{{
+/** Get the specified range of paragraphs from a book */
+getParagraphs (bookTitle, startLocation, endLocation) {
+  const filter = [
+    { term: { title: bookTitle } },
+    { range: { location: { gte: startLocation, lte: endLocation } } }
+  ]
+
+  const body = {
+    size: endLocation - startLocation,
+    sort: { location: 'asc' },
+    query: { bool: { filter } }
+  }
+
+  return client.search({ index, type, body })
+}
+}}}
+此功能将返回给定书排序后的段落。
+
+##8.1 添加API服务端口
+本节将把上节功能链接到API服务端口。在server/app.js中原来的/search服务端口下添加如下内容：
+{{{
+/**
+ * GET /paragraphs
+ * Get a range of paragraphs from the specified book
+ * Query Params -
+ * bookTitle: string under 256 characters
+ * start: positive integer
+ * end: positive integer greater than start
+ */
+router.get('/paragraphs',
+  validate({
+    query: {
+      bookTitle: joi.string().max(256).required(),
+      start: joi.number().integer().min(0).default(0),
+      end: joi.number().integer().greater(joi.ref('start')).default(10)
+    }
+  }),
+  async (ctx, next) => {
+    const { bookTitle, start, end } = ctx.request.query
+    ctx.body = await search.getParagraphs(bookTitle, start, end)
+  }
+)
+}}}
+
+##8.2 添加UI界面
+本节添加前端查询功能，并显示书中包含查询内容的整页信息。在/public/app.js methods功能块中添加如下内容：
+{{{
+    /** Call the API to get current page of paragraphs */
+    async getParagraphs (bookTitle, offset) {
+      try {
+        this.bookOffset = offset
+        const start = this.bookOffset
+        const end = this.bookOffset + 10
+        const response = await axios.get(`${this.baseUrl}/paragraphs`, { params: { bookTitle, start, end } })
+        return response.data.hits.hits
+      } catch (err) {
+        console.error(err)
+      }
+    },
+    /** Get next page (next 10 paragraphs) of selected book */
+    async nextBookPage () {
+      this.$refs.bookModal.scrollTop = 0
+      this.paragraphs = await this.getParagraphs(this.selectedParagraph._source.title, this.bookOffset + 10)
+    },
+    /** Get previous page (previous 10 paragraphs) of selected book */
+    async prevBookPage () {
+      this.$refs.bookModal.scrollTop = 0
+      this.paragraphs = await this.getParagraphs(this.selectedParagraph._source.title, this.bookOffset - 10)
+    },
+    /** Display paragraphs from selected book in modal window */
+    async showBookModal (searchHit) {
+      try {
+        document.body.style.overflow = 'hidden'
+        this.selectedParagraph = searchHit
+        this.paragraphs = await this.getParagraphs(searchHit._source.title, searchHit._source.location - 5)
+      } catch (err) {
+        console.error(err)
+      }
+    },
+    /** Close the book detail modal */
+    closeBookModal () {
+      document.body.style.overflow = 'auto'
+      this.selectedParagraph = null
+    }
+}}}
+以上五个功能块提供在书中下载和分页（每页显示10段）逻辑操作。
+在/public/index.html 中的<!-- INSERT BOOK MODAL HERE --> 分界符下加入显示书页的UI代码如下：
+{{{
+    <!-- Book Paragraphs Modal Window -->
+    <div v-if="selectedParagraph" ref="bookModal" class="book-modal">
+      <div class="paragraphs-container">
+        <!-- Book Section Metadata -->
+        <div class="title-row">
+          <div class="mui--text-display2 all-caps">{{ selectedParagraph._source.title }}</div>
+          <div class="mui--text-display1">{{ selectedParagraph._source.author }}</div>
+        </div>
+        <br>
+        <div class="mui-divider"></div>
+        <div class="mui--text-subhead locations-label">Locations {{ bookOffset - 5 }} to {{ bookOffset + 5 }}</div>
+        <div class="mui-divider"></div>
+        <br>
+
+        <!-- Book Paragraphs -->
+        <div v-for="paragraph in paragraphs">
+          <div v-if="paragraph._source.location === selectedParagraph._source.location" class="mui--text-body2">
+            <strong>{{ paragraph._source.text }}</strong>
+          </div>
+          <div v-else class="mui--text-body1">
+            {{ paragraph._source.text }}
+          </div>
+          <br>
+        </div>
+      </div>
+
+      <!-- Book Pagination Footer -->
+      <div class="modal-footer">
+        <button class="mui-btn mui-btn--flat" v-on:click="prevBookPage()">Prev Page</button>
+        <button class="mui-btn mui-btn--flat" v-on:click="closeBookModal()">Close</button>
+        <button class="mui-btn mui-btn--flat" v-on:click="nextBookPage()">Next Page</button>
+      </div>
+    </div>
+}}}
+重启应用服务器（docker-compose up -d --build），打开localhost:8080。此时如果点击搜索结果，就可以查询段落上下文。如果对查到结果感兴趣，甚至可以从查询处一直读下去。
+
+恭喜！！到这一步主体框架已经搭建完毕。以上所有代码都可以从[这里](https://search.patricktriest.com)获得。
+
+#9 Elasticsearch的不足
+##9.0 资源消耗
+Elasticsearch是计算资源消耗的应用。官方建议至少运行在64G以上内存的设备上，不建议少于8GB内存。Elasticsearch是一个内存数据库，因此查询速度会很快，但是也会消耗大量内存。生产中，强烈推荐运行Elasticsearch集群提供高可用性、自动分片和数据冗余功能。
+我在一个1.7GB的云设备上（每月15美金）运行以上示例（search.patriktriest.com），这些资源仅是能够运行Elasticsearch节点。有时整个节点会在初始装载数据时候hang住。从我的经验看，Elasticsearch比传统的PostgreSQL和MongoDB跟消耗资源，如果需要提供理想服务效果，成本可能会很贵。
+
 
