@@ -495,7 +495,34 @@ Elasticsearch已经灌入100本书籍数据（大约230000段落），本节做�
 
 Elasticsearch HTTP接口对于测试数据是否正常插入很有用，但是如果直接暴露给web应用就很危险。不应该将操作性API功能（例如直接添加和删除文档）直接暴露给应用，而应该写一段简单Node.js API接收客户端请求，（通过私网）转发给Elasticsearch进行查询。
 
+##5.1 请求脚本
+这一节介绍如何从Node.js应用中向Elasticsearch中发送请求。首先创建新文件：server/search.js
+{{{
+const { client, index, type } = require('./connection')
 
+module.exports = {
+  /** Query ES index for the provided term */
+  queryTerm (term, offset = 0) {
+    const body = {
+      from: offset,
+      query: { match: {
+        text: {
+          query: term,
+          operator: 'and',
+          fuzziness: 'auto'
+        } } },
+      highlight: { fields: { text: {} } }
+    }
 
-
+    return client.search({ index, type, body })
+  }
+}
+}}}
+本模块定义了一个简单的search功能，使用输入信息进行匹配查询。详细字段解释如下：
+1. from:为结果标出页码。每次查询默认返回10个结果；因此指定from为10，可以直接显示10-20的查询结果。
+2. query:具体查询关键词
+3. operator: 具体查询操作；本例中采用“and”操作符，优先显示包含所有查询关键词的结果。
+4. fuzziness: 错误拼写修正级别（或者是模糊查询级别），默认是2。数值越高，允许模糊度越高；例如数值1，会对Patricc的查询返回Patrick结果。
+5. highlights:返回额外信息，其中包含HTML格式显示匹配文本信息。
+可以调整这些参数看看具体的显示信息，可以查看[Elastic Full-Text Query DSL](https://www.elastic.co/guide/en/elasticsearch/reference/current/full-text-queries.html)获得更多信息：
 
