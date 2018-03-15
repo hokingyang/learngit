@@ -70,8 +70,57 @@ spec:
 $ kubectl apply -f gamesever.yaml
 gameserver "my-game-server" created
 ```
+Agones会按照yaml文件中配置启动游戏服务器，分配一个公有端口，将IP和端口号发回玩家端进行直连。通过嵌入游戏服务器内的SDK代码监控游戏服务器生命周期和状态。可以通过kubectl和k8sAPI向游戏服务器请求获得各种信息，包括状态，IP和端口等。
+```
+$ kubectl describe gameserver my-game-server
+Name:         my-game-server
+Namespace:    default
+Labels:       
+Annotations:  
+API Version:  stable.agones.dev/v1alpha1
+Kind:         GameServer
+Metadata:
+  Cluster Name:
+  Creation Timestamp:  2018-02-09T05:02:18Z
+  Finalizers:
+    stable.agones.dev
+  Generation:        0
+  Initializers:      
+  Resource Version:  13422
+  Self Link:         /apis/stable.agones.dev/v1alpha1/namespaces/default/gameservers/my-game-server
+  UID:               6760e87c-0d56-11e8-8f17-0800273d63f2
+Spec:
+  Port Policy:     dynamic
+  Container:       my-game-server-container
+  Container Port:  7654
+  Health:
+    Failure Threshold:      3
+    Initial Delay Seconds:  5
+    Period Seconds:         5
+  Host Port:                7884
+  Protocol:                 UDP
+  Template:
+    Metadata:
+      Creation Timestamp:  
+    Spec:
+      Containers:
+        Image:  gcr.io/agones-images/my-game-server:0.1
+        Name:   my-game-server-container
+        Resources:
+Status:
+  Address:    192.168.99.100
+  Node Name:  agones
+  Port:       7884
+  State:      Ready
+Events:
+  Type    Reason    Age   From                   Message
+  ----    ------    ----  ----                   -------
+  Normal  PortAllocation  3s    gameserver-controller  Port allocated
+  Normal  Creating        3s    gameserver-controller  Pod my-game-server-q98sz created
+  Normal  Starting        3s    gameserver-controller  Synced
+  Normal  Ready           1s    gameserver-controller  Address and Port populated
+```
 
-
-
-Agones manages starting the game server process defined in the yaml, assigning it a public port, and retrieving the IP and port so that players can connect to it. It also tracks the lifecycle and health of the configured GameServer through an SDK that's integrated into the game server process code.
-You can query Kubernetes to get details about the GameServer, including its State, and the IP and port that player game clients can connect to, either through kubectl or the Kubernetes API:
+##下一步##
+Agones还是很初级阶段，但是我们对它的未来很期待。我们在其上已经开始了不少功能，例如游戏服务器集群，包括支持windows的0.2版本路标支持，游戏服务器状态搜集和显示，节点自动扩展等。
+如果想尝试Agones 0.1 alpha版本，可以直接在k8s集群上安装，例如：GKE or minikube；我们也有一个很好的[安装文档](https://github.com/GoogleCloudPlatform/agones/blob/master/docs/installing_agones.md)可以参考。
