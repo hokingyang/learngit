@@ -21,7 +21,7 @@
 Agones用k8s集群替代了图一架构图中的集群管理和弹性扩展功能，其中包括一个客制化k8s控制器和客制化的游戏服务资源定义匹配器。如图二所示：
 【图二】
 
-通过Agones，k8s通过标准k8s功能和API提供的内置功能在k8s集群中提供创建，运行，管理和弹性扩展专属服务进程的能力。这种模式也允许匹配器直接通过k8sAPI和Agones沟通生成专属游戏服务。
+Agones通过调用标准k8s功能和API提供的内置功能，可以在k8s集群中提供创建，运行，管理和弹性扩展专属服务进程的能力。这种模式也允许匹配器直接通过k8sAPI和Agones沟通生成专属游戏服务。
 在k8s之上构建Agones还有其它好处：可以很容易在任何地方，例如开发者设备，通过像minikutbe,in-studi集群，on-premises设备或者云环境等平台直接运行游戏负载。k8s也可以简化操作。多人游戏除了专属服务器外，还有后勤服务，账户管理，装备，市场等其他进程支撑。用k8s作为单一平台可以动态运行支撑进程，减少开发团队面对的游戏层面复杂逻辑关系。
 
 最后一点，Agones后台并不只是孤立的游戏开发，其后台可以使用k8s贡献者和大量成熟工具带来的生态系统。Ubisoft在Agones项目中资助了贡献者，将他们顶尖的知识带到了AAA级游戏玩家面前。
@@ -36,6 +36,7 @@ Agones用k8s集群替代了图一架构图中的集群管理和弹性扩展功�
 使用如下命令创建专属游戏服务：
 
 Dockerfile
+
 ```
 FROM debian:stretch
 RUN useradd -m server
@@ -46,9 +47,10 @@ RUN chown -R server /home/server && \
 
 USER server
 ENTRYPOINT ["/home/server/game-server"]
-
 ```
+
 通过变价k8s pod配置选线提价游戏服务资源：
+
 gameserver.yaml
 ```
 apiVersion: "stable.agon.io/v1alpha1"
