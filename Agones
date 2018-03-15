@@ -29,4 +29,49 @@ Agones用k8s集群替代了图一架构图中的集群管理和弹性扩展功�
 >>我们的目的就是尽所能提供提供高质量无缝服务，让玩家只需专注于游戏中。Agones帮助我们在数据中心运行专属游戏服务的灵活性，而且给开发团队提供了更多资源可控性。这种合作为整合Google云平台专业性和我们队游戏行业的专业理解提供了可能性。
 >> ---- Carl Dionne, 开发总监，Online Technology Group, Ubisoft
 
+##开始##
+因为Agones是基于k8s扩展开发的，因此可以使用所有标准k8s工具，包括kubectl和k8s API.
 
+##创建游戏服务器##
+使用如下命令创建专属游戏服务：
+
+Dockerfile
+```
+FROM debian:stretch
+RUN useradd -m server
+
+COPY ./bin/game-server /home/server/game-server
+RUN chown -R server /home/server && \
+    chmod o+x /home/server/game-server
+
+USER server
+ENTRYPOINT ["/home/server/game-server"]
+
+```
+通过变价k8s pod配置选线提价游戏服务资源：
+gameserver.yaml
+```
+apiVersion: "stable.agon.io/v1alpha1"
+kind: GameServer
+metadata:
+  name: my-game-server
+spec:
+  containerPort: 7654
+  # Pod template
+  template:
+    spec:
+      containers:
+      - name: my-game-server-container
+        image: gcr.io/agon-images/my-game-server:0.1
+```
+
+通过kubectl命令行或者k8s API提交以上定义：
+```
+$ kubectl apply -f gamesever.yaml
+gameserver "my-game-server" created
+```
+
+
+
+Agones manages starting the game server process defined in the yaml, assigning it a public port, and retrieving the IP and port so that players can connect to it. It also tracks the lifecycle and health of the configured GameServer through an SDK that's integrated into the game server process code.
+You can query Kubernetes to get details about the GameServer, including its State, and the IP and port that player game clients can connect to, either through kubectl or the Kubernetes API:
