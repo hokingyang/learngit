@@ -1,0 +1,29 @@
+#Agones：一款基于k8s开源游戏服务器#
+
+在分布式系统领域，支持在线弹性扩展，实时多人专属游戏服务器意味着特殊的挑战。随着游戏专业人士创造的各种特殊方案，k8s被整合成跨云和物理机，支持复杂工作流的开源分布式标准。今天，我们很高兴发布开源Agones（希腊语“contest”或者“gathering”的意思）项目，支持弹性扩展实时多人专属游戏平台。
+
+按照目前跟游戏业界巨头Ubisoft的合作进展，Agones被定位为自驱动（batteries-included），开源，基于k8s的专属弹性游戏平台项目，用户可以在其上按需灵活调整自己的游戏主机配置。
+
+##The nature of dedicated game servers##
+游戏行业一般通过软件调度编排实现游戏服务弹性扩展，而系统级的弹性则很少被考虑，实际上这并不奇怪。许多流行在线多人游戏都需要专属服务器，例如competitive FPSs，MMOs，和MOBAs，它们都需要给玩家共享同一个游戏世界的感受。这种专属服务器一般都部署在互联网上，来实时同步玩家之间的状态，同时也需要对每个玩家状态进行裁决，保证大家不会作弊。
+
+专属游戏服务器是在内存中保留游戏信息的有状态应用。但是和其它有状态应用（如数据库）不同，他们生命周期很短，一般只需保留几分钟或者几个小时。专属游服也需要直连到运行服务进程的IP和端口，而不是通过负载均衡器，因此这类应用对网络延迟很敏感（复杂均衡器只会增加延迟）。另外所有连到同一台服务器玩家会共享内存状态，因此将他们连到同一台设备最简单。下图是一个典型架构，具体过程如下：
+【图一】
+
+1. 玩家们连接到某种匹配服务，匹配服务（一般通过玩家等级）将玩家匹配分组。
+2. 一旦玩家匹配成功，匹配服务通知游戏管理器在服务器集群中提供一个专属游戏进程。
+3. 游戏管理器在集群中某台机器上创建专属游戏服务。
+4. 游戏管理器给专属游戏服务分配IP地址和服务端口，并返回匹配器。
+5. 匹配器将返回的IP地址和端口回传给玩家
+6. 玩家们直连到专属服务进程开始游戏。
+
+##基于k8s构建开源Agones##
+Agones用k8s集群替代了图一架构图中的集群管理和弹性扩展功能，其中包括一个客制化k8s控制器和客制化的游戏服务资源定义匹配器。如图二所示：
+【图二】
+
+通过Agones，k8s通过标准k8s功能和API提供的内置功能在k8s集群中提供创建，运行，管理和弹性扩展专属服务进程的能力。这种模式也允许匹配器直接通过k8sAPI和Agones沟通生成专属游戏服务。
+在k8s之上构建Agones还有其它好处：可以很容易在任何地方，例如开发者设备，通过像minikutbe,in-studi集群，on-premises设备或者云环境等平台直接运行游戏负载。
+
+
+
+Kubernetes also simplifies operations. Multiplayer games are never just dedicated game servers—there are always supporting services, account management, inventory, marketplaces etc. Having Kubernetes as a single platform that can run both your supporting services as well as your dedicated game servers drastically reduces the required operational knowledge and complexity for the supporting development team.
