@@ -5,8 +5,8 @@
 大家也可能听说过ERC20，ERC721，或者其它标准，他们都是开发者社区共同遵守的[基础功能](https://github.com/ethereum/EIPs)，在此基础上，大家都可以使用自己开发功能，以自己的方式创建脚本来管理虚拟货币。
 
 加勒比海盗中有一句台词很好地再现了这个情况：
->"the code is more like guidelines, RATHER THAN ACTUAL RULES"
-【图一】
+[the code is more like guidelines, RATHER THAN ACTUAL RULES"](https://github.com/hokingyang/learngit/blob/master/%E4%BB%A5%E5%A4%AA%E5%9D%8A%E4%B9%8B%E5%9B%9B%E6%9D%83%E8%AF%81%E4%B8%8EERC.jpeg)
+
 
 长远看，遵循标准有很多益处。首先，如果遵照标准生成权证，那么每个人都会知道它是如何产生，并知道如何和它打交道，因此就会有更多信任。例如，DApps，跟Mist很像，大家都会认为它是一种权证，并通过特定的UI来与其打交道。另外，一种权证智能合约标准实现已经被社区开发出来，它采用类似[OpenZeppelin](https://github.com/OpenZeppelin/zeppelin-solidity)的架构。这种实现已经被很多大神验证过，可以用来作为权证开发的起点。
 
