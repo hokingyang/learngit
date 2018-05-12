@@ -8,7 +8,7 @@
 [Kong](https://konghq.com/)就是满足这样要求，提供了高性能，开源API网关、流量控制和微服务管理层的功能，支撑工作负载对网络的要求。然而，Kong并非一个通用型解决方案。对于不同软件和企业级生态系统需求，Kong支持丰富插件提供认证，流量控制等功能。
 
 k8s上部署Kong相对比较简单，但是将Kong服务整合到k8s是手动过程。这也就是为什么发布Kong Ingress Controller for Kubernetes。实现此功能后，Kong被嵌合进k8s生命周期。一旦应用和新服务创建，Kong自动生成配置来适配这些服务。
-【图一】
+![Kong架构图](https://2tjosk2rxzc21medji3nfn1g-wpengine.netdna-ssl.com/wp-content/uploads/2018/05/kong-kubernetes-ingress-controller.png)
 
 秉承k8s哲学，即使用资源自己实现期望功能，而不是告诉服务实现功能的具体步骤。简单说，只定义最终状态而不是在集群上定义具体步骤。
 
@@ -17,7 +17,6 @@ k8s上部署Kong相对比较简单，但是将Kong服务整合到k8s是手动过
 ## 配置Kong Ingress Controller
 
 下一步，将展示Kong Ingress Controller易用性。有一个[Github示例](https://github.com/Kong/kubernetes-ingress-controller/blob/master/deploy/README.md)，一步步演示如何去做。也可以跟随Marco Palladino，Kong CTO和Co-Founder在视频中演示的具体步骤。
-【视频】
 
 <p><a href="https://konghq.com/blog/kubernetes-ingress-controller-for-kong/?wvideo=031s5hisu2"><img src="https://embedwistia-a.akamaihd.net/deliveries/612848cb8c1cff658300a48712c188a5a91bc3f2.jpg?image_play_button_size=2x&amp;image_crop_resized=960x540&amp;image_play_button=1&amp;image_play_button_color=54bbffe0" width="400" height="225" style="width: 400px; height: 225px;"></a></p><p><a href="https://konghq.com/blog/kubernetes-ingress-controller-for-kong/?wvideo=031s5hisu2">Announcing the Kubernetes Ingress Controller for Kong</a></p>
 
