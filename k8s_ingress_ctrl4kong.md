@@ -1,11 +1,11 @@
 # 适配kong的k8s ingress控制器发布
 今天我们很高兴发布[k8s Ingress控制器](https://github.com/Kong/kubernetes-ingress-controller)。
 
-容器编排发展很快，以满足基础架构更加灵活可靠，更加有效的要求。这些工具前端都是依托于k8s，k8s编排器不仅是操作和应用团队部署扩展灵活，同时也让给开发者更好的开发体验和使用自服务模式。
+容器编排发展很快，以满足基础架构更加灵活可靠，更加有效的要求。这些工具前端都是依托于k8s，k8s编排器不仅使得操作和应用团队部署扩展灵活，同时也让给开发者更好的开发体验并使用自服务模式。
 
 这种模式关键是一套网络栈，能够提供跨集群容器编排的高度动态部署和动态扩展。
 
-[Kong](https://konghq.com/)提供了高性能，开源API网关、流量控制和微服务管理层的功能，支撑工作负载对网络的要求。然而，Kong并非一个通用型解决方案。对于不同软件和企业级生态系统需求，Kong支持丰富插件提供认证，流量控制等功能。
+[Kong](https://konghq.com/)就是满足这样要求，提供了高性能，开源API网关、流量控制和微服务管理层的功能，支撑工作负载对网络的要求。然而，Kong并非一个通用型解决方案。对于不同软件和企业级生态系统需求，Kong支持丰富插件提供认证，流量控制等功能。
 
 k8s上部署Kong相对比较简单，但是将Kong服务整合到k8s是手动过程。这也就是为什么发布Kong Ingress Controller for Kubernetes。实现此功能后，Kong被嵌合进k8s生命周期。一旦应用和新服务创建，Kong自动生成配置来适配这些服务。
 【图一】
@@ -18,6 +18,8 @@ k8s上部署Kong相对比较简单，但是将Kong服务整合到k8s是手动过
 
 下一步，将展示Kong Ingress Controller易用性。有一个[Github示例](https://github.com/Kong/kubernetes-ingress-controller/blob/master/deploy/README.md)，一步步演示如何去做。也可以跟随Marco Palladino，Kong CTO和Co-Founder在视频中演示的具体步骤。
 【视频】
+
+<p><a href="https://konghq.com/blog/kubernetes-ingress-controller-for-kong/?wvideo=031s5hisu2"><img src="https://embedwistia-a.akamaihd.net/deliveries/612848cb8c1cff658300a48712c188a5a91bc3f2.jpg?image_play_button_size=2x&amp;image_crop_resized=960x540&amp;image_play_button=1&amp;image_play_button_color=54bbffe0" width="400" height="225" style="width: 400px; height: 225px;"></a></p><p><a href="https://konghq.com/blog/kubernetes-ingress-controller-for-kong/?wvideo=031s5hisu2">Announcing the Kubernetes Ingress Controller for Kong</a></p>
 
 安装步骤基本就是安装所需的k8s manifests，例如前端服务：ingress controller部署，Kong需要跟所有RBAC模块打交道以便正常访问k8s API路径。
 
