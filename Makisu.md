@@ -26,15 +26,25 @@
 
 不幸的是，Docker创建逻辑依赖于一种通过对比创建时间来决定不同层次之间不同的copy-on-write文件系统。这个逻辑需要特权挂载或者卸载容器内部的目录，以便给新系统提供安全机制。也就意味着，完全轻量级创建并不是解决思路。
 
-## 支持分布式cache ##
-通过分层缓存（cache）技术，用户可以复用之前的创建版本和层级，可以减少执行时候的冗余。Docker为每个创建提供分布式缓存，但是并不支持不同分支和服务。
+## 支持分布式缓存(cache) ##
+通过分层缓存（cache）技术，用户可以复用之前的创建版本和层级，可以减少执行时候的冗余。Docker为每个创建提供分布式缓存，但是并不支持不同分支和服务。需要依靠Docker本地缓存层，但是因为集群内的生成新版本要求不断清空缓存，造成缓存命中率大大降低。
+
+过去，Uber采用指定机器创建指定服务的方式提高命中率，然而，这种方法对于多种服务构成的系统来说显然是不够的。考虑到我们每天会使用上千种服务，这个过程也增加了调度复杂性。
+
+显然一个好的缓存策略对我们的方案更加重要，最终分布式缓存方案既可以解决性能问题，也能够解决创建系统时的调度问题。
+
+## 优化image大小 ##
 
 
-Layer caching allows users to create builds consisting of the same build steps as previous builds and reuse formerly generated layers, thereby reducing execution redundancy. Docker offers some distributed cache support for individual builds, but this support does not generally extend between branches or services. We relied primarily on Docker’s local layer cache, but the sheer volume of builds spread across even a small cluster of our machines forced us to perform cleanup frequently, and resulted in a low cache hit rate which largely contributed to the inflated build times.
 
-In the past, there had been efforts at Uber to improve this hit rate by performing subsequent builds of the same service on the same machine. However, this method was insufficient as the builds consisted of a diverse set of services as opposed to just a few. This process also increased the complexity of build scheduling, a nontrivial feat given the thousands of services we leverage on a daily basis.  
+Smaller images save storage space and take less time to transfer, decompress, and start.
 
-It became apparent to us that greater cache support was a necessity for our new solution. After conducting some research, we determined that implementing a distributed layer cache across services addresses both issues by improving builds across different services and machines without imposing any constraints on the location of the build.
+To optimize image size, we looked into using multi-stage builds in our solution. This is a common practice among Docker image build solutions: performing build steps in an intermediate image, then copying runtime files to a slimmer final image. Although this feature does require more complicated Dockerfiles, we found that it can drastically reduce final image sizes, thereby making it a requirement for building and deploying images at scale.
+
+Another optimization tactic we explored for decreasing image size is to reasonably reduce the number of layers in an image. Fat images are sometimes the result of files being created and deleted or updated by intermediate layers. As mentioned earlier, even when a temporary file is removed in a later step, it remains in the creation layer, taking up precious space. Having fewer layers in an image decreases the chance of deleted or updated files remaining in previous layers, hence reducing the image size.
+
+
+
 
 
 
