@@ -7,7 +7,7 @@
 随着Docker的发展，核心架构团队开发了一套快速高效为Apache Mesos和基于k8s的容器生态产生 Dockerfiles配置文件并将应用代码打包在Docker images中的技术。考虑到微服务技术的快速发展，我们开源了核心模块，Makisu，以便其它用户能够收到同样的效果。
 
 
-# Uber的Docker之路 #
+## Uber的Docker之路 ##
 2015年早期，我们在裸服务器上部署了大约400个服务，他们共享主机上的依赖包和配置文件，仅有很少资源限制。随着工程师规模扩大，依赖管理和资源隔离成为一个问题。为了解决这个问题，核心架构团队开始将服务移植到Docker中，随之建立了标准化和流程化的容器创建流程自动化机制。
 
 新容器化运行环境在服务生命周期管理的运行速度和可靠性方面带来很大提高。然而，访问服务依赖的密钥被打包进images，带来了潜在的安全隐患。简单说，一旦一个文件被放入Docker image中，就会永久存在。尽管可以通过其他这种手段隐藏这些密钥，但是Docker 并不提供真正将他们从image中移除的功能。
@@ -16,32 +16,95 @@
 
 为了解决这个问题，我们决定分叉Docker自研我们需要的功能。如果在创建image时候，把所需的密钥以volume方式挂载，这样最终的Docker image中就不留任何密钥的痕迹。因为没有额外延迟，而且代码更改也很少，因此这方法很有效。架构团队和服务团队都满意了，容器架构被更好地利用起来。
 
-# 横向编译容器image #
+## 横向编译容器image ##
 到了2017年，这种架构不再能满足需求。随着Uber的增长，平台规模也同样收到很大挑战。每次创建超过3000个服务，每天有若干次，大大增加了消耗时间。有些需要2个小时，大小超过10GB，消耗大量存储空间和带宽，严重影响开发者生产率。
 
 此时，我们认识到创建可以扩展的容器image是很重要的。为此提出了三个需求：轻量创建，支持分布式cache，image大小优化。
 
-## 轻量创建 ##
+### 轻量创建 ###
 2017年，核心架构团队开始将Uber的计算负载迁移到提供自动化、可扩展和更加弹性化的统一平台上。随之而来，Dockerfile也需要能够运行在共享集群上的容器中。
 
 不幸的是，Docker创建逻辑依赖于一种通过对比创建时间来决定不同层次之间不同的copy-on-write文件系统。这个逻辑需要特权挂载或者卸载容器内部的目录，以便给新系统提供安全机制。也就意味着，完全轻量级创建并不是解决思路。
 
-## 支持分布式缓存(cache) ##
+### 支持分布式缓存(cache) ###
 通过分层缓存（cache）技术，用户可以复用之前的创建版本和层级，可以减少执行时候的冗余。Docker为每个创建提供分布式缓存，但是并不支持不同分支和服务。需要依靠Docker本地缓存层，但是因为集群内的生成新版本要求不断清空缓存，造成缓存命中率大大降低。
 
 过去，Uber采用指定机器创建指定服务的方式提高命中率，然而，这种方法对于多种服务构成的系统来说显然是不够的。考虑到我们每天会使用上千种服务，这个过程也增加了调度复杂性。
 
 显然一个好的缓存策略对我们的方案更加重要，最终分布式缓存方案既可以解决性能问题，也能够解决创建系统时的调度问题。
 
-## 优化image大小 ##
+### 优化image大小 ###
+小images节省空间，并且可以节省转换、压缩和启动时间。
+
+为了优化image尺寸，我们计划采用多阶段步骤。在众多方案中并不很特别：通过中间态images，将运行时所需文件拷入瘦身的最终images。尽管需要比较负载的Dockerfiles，但可以减小images大小，因此可以很好地弹性部署。
+
+另外，通过减少image中的层数也可以减少image大小，images比较大有可能是某些文件被中间层创建，删除或者更新的结果。如前所述，即使后续步骤删除了临时文件，但是在开始层中仍然存在，占据相应空间。减少层数可以大大减少删除或更新的文件在之前层中依然存在的可能性，因此可以减小image大小。
+
+## 介绍Makisu ##
+为了实现以上想法，我们开发了自己的image工具，Makisu，实现更加动态，更快容器创建，更加弹性等功能。其特点包括：
+
+不需要特殊权限；开发过程更加容易移植；开发集群内部使用分布式层间缓存提高性能；提供灵活层间管理，减少images中不必要文件；与容器Docker兼容；支持标准和多阶段开发命令；下面详细介绍这些特性。
+
+### 不需要特殊权限 ###
+与其它虚机相比Docker image更加轻量是因为中间层只包括运行开发步骤前后文件系统的差别。Docker计算差别，并使用需要特权的CoW文件系统生成中间层。
+
+为了实现不需要特权生成中间层，Makisu在内存中进行文件系统扫描。运行开发步骤后，在此扫描文件系统，更新内存视图，将变化文件添加到新一层。
+
+Makisu也对压缩速度进行了优化，这对弹性部署非常重要。Docker使用Go中默认gzip库压缩层级，当遇到带有大量text文件的 image层来说性能很慢。文件扫描阶段后，即使没有缓存，Makisu在很多方面比Docker要快，其中P90开发时间将近节省50%。
+
+### 分布式缓存 ###
+Makisu用key-value数据库映射Dockerfiles中操作行到存放在Docker注册表中的层数。key-value数据库可以用Redis或者文件系统。Makisu也用缓存TTL确保缓存内容不会存放太久。
+
+缓存key用当前开发命令和前一条命令的key一起生成。缓存值是生成层内容的哈希值，也用来定位当前层在Docker注册表中的位置。
+
+在Dockerfile的初始化阶段，层生成并且异步推到Docker注册表和key-value库中。后续同样步骤可以从缓存层中获取并解压获取，避免冗余操作。
+
+### 灵活层间操作 ###
+为开发过程对iamge层进行控制，Makisu映入了新的操作注释: #!COMMIT，指代Dockerfile中可以生成新层的行。这一简单机制对减少容器image大小很关键（ 后续操作要删除或者更新文件 ），解决了密钥跨层存取的问题。每个commit层在分布式缓存中得以体现，集群中其它开发者也可以使用这一更新结果。
+
+以下是一个Dockerfile的实例，其中使用了Makisu的操作注释：
+
+{{{
+FROM debian:8 AS build_phase
+RUN apt-get install wget #!COMMIT
+RUN apt-get install go1.10 #!COMMIT
+COPY git-repo git-repo
+RUN cd git-repo && make
+
+FROM debian:8 AS run_phase
+RUN apt-get install wget #!COMMIT
+LABEL service-name=test
+COPY –from=build_phase git-repo/binary /binary
+ENTRYPOINT /binary
+}}}
+
+本例中，安装了运行时需求包（wget和go1.10），并在相应层内commit，后续创建服务代码。当这些committed层创建后，在分布式缓存中得以更新，其它开发这可以使用，大大提高了开发工作冗余操作的速度。
+
+第二阶段，开发再次安装wget，这次Makisu重用了之前生成的代码。最后，服务代码从开发阶段拷贝到最终image，并生成最终image。这一示例生成一个瘦身的最终image，具体结构如图一所示：
 
 
 
-Smaller images save storage space and take less time to transfer, decompress, and start.
 
-To optimize image size, we looked into using multi-stage builds in our solution. This is a common practice among Docker image build solutions: performing build steps in an intermediate image, then copying runtime files to a slimmer final image. Although this feature does require more complicated Dockerfiles, we found that it can drastically reduce final image sizes, thereby making it a requirement for building and deploying images at scale.
+图一. Docker为每一步启动一个新容器并生成三层，Makisu在一个容器中编排所有步骤并跳过不必要的层生成
 
-Another optimization tactic we explored for decreasing image size is to reasonably reduce the number of layers in an image. Fat images are sometimes the result of files being created and deleted or updated by intermediate layers. As mentioned earlier, even when a temporary file is removed in a later step, it remains in the creation layer, taking up precious space. Having fewer layers in an image decreases the chance of deleted or updated files remaining in previous layers, hence reducing the image size.
+### Docker兼容 ###
+Docker image一般是由一些明文按顺序展开的tar文件和两个配置文件构成，Makisu生成的images跟Docker Daemon和注册表完全兼容。
+
+Makisu也支持多阶段开发，通过#！COMMIT的引入，可以实现不必要步骤跳过，并节省空间。
+
+另外，因为#！COMMIT格式化为注释，Makisu使用的Dockerfiles可以被Docker完全兼容。
+
+## 如何使用Makisu ##
+如果想使用Makisu，用户可以直接下载二进制代码，并且不带RUN地运行简单Dockerfiles。用户可以下载Makisu，运行在Docker容器内部，或者作为k8s/Apache Mesos持续集成的工作流。
+
+ - ![本地使用Makisu二进制代码](https://github.com/uber/makisu#building-makisu-binary-and-build-simple-images)
+ - ![本地使用Makisu image](https://github.com/uber/makisu#makisu-anywhere)
+ - ![作为k8s工作流运行Makisu](https://github.com/uber/makisu#makisu-on-kubernetes)
+
+
+
+
+
 
 
 
