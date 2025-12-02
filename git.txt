@@ -1,0 +1,6 @@
+git remote set-url origin https://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@github.com/hokingyang/learngit.git
+
+git push -u origin master
+
+git add .
+git commit -m "20240309"
